@@ -1,6 +1,5 @@
 flask
 flask-cors
-yt-dlp
-Pillow
-rembg
 requests
+Pillow
+gunicorn
