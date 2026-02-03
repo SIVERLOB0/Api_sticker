@@ -7,20 +7,18 @@ import io
 import requests
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import yt_dlp
 from PIL import Image
-from rembg import remove # La magia para quitar fondos
 
+# Importante: Si tu archivo se llama main.py en Railway, Flask debe llamarse 'app'
 app = Flask(__name__)
 CORS(app)
 
-DOWNLOAD_FOLDER = 'downloads'
+DOWNLOAD_FOLDER = 'stickers'
 if not os.path.exists(DOWNLOAD_FOLDER):
     os.makedirs(DOWNLOAD_FOLDER)
 
-print("🐺 WOLF API (FULL SUITE): ONLINE...")
+print("🐺 WOLF STICKER (SUPER LITE - SIN IA): ONLINE...")
 
-# --- LIMPIEZA AUTOMÁTICA ---
 def limpiar_basura():
     while True:
         try:
@@ -37,66 +35,47 @@ threading.Thread(target=limpiar_basura, daemon=True).start()
 
 @app.route('/')
 def home():
-    return "🐺 WOLF API: MEDIA & STICKERS READY."
+    return "🐺 WOLF STICKER: MODO SUPER LITE (SIN CRASHEOS)"
 
-# --- ENDPOINT DE YOUTUBE/TIKTOK (YA LO TIENES) ---
-@app.route('/process', methods=['GET'])
-def process_media():
-    # ... (MANTÉN TU CÓDIGO DE YT-DLP AQUÍ IGUAL QUE ANTES) ...
-    # Para no hacer este mensaje eterno, asumo que usas el código "TikTok Fix" que te di antes.
-    return jsonify({"status": False, "error": "Usa el código anterior para esta parte"}), 501
-
-
-# --- NUEVO: ENDPOINT DE STICKERS ---
-@app.route('/sticker', methods=['GET'])
-def make_sticker():
+@app.route('/create', methods=['GET'])
+def create_sticker():
     url = request.args.get('url')
-    
     if not url: return jsonify({"status": False, "error": "Falta URL"}), 400
 
-    print(f"🎨 Creando Sticker de: {url}")
     file_id = str(uuid.uuid4())
     filename = f"{file_id}.webp"
     filepath = os.path.join(DOWNLOAD_FOLDER, filename)
 
     try:
-        # 1. Descargar la imagen
-        response = requests.get(url, stream=True)
+        # 1. Descargar imagen
+        response = requests.get(url, stream=True, timeout=10)
         response.raise_for_status()
         
-        # 2. Abrir imagen con Pillow
+        # 2. Abrir imagen
         img = Image.open(io.BytesIO(response.content)).convert("RGBA")
 
-        # 3. Quitar fondo (Magia AI)
-        # alpha_matting mejora los bordes (pelo, pelaje de lobo, etc)
-        img_sin_fondo = remove(img, alpha_matting=True)
-
-        # 4. Redimensionar a 512x512 (Formato Sticker)
-        # No estiramos, hacemos que "quepa" manteniendo proporción
-        img_sin_fondo.thumbnail((512, 512))
+        # 3. Redimensionar a 512x512 (Estándar Sticker)
+        img.thumbnail((512, 512))
         
-        # Crear un lienzo vacío transparente de 512x512
-        final_img = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
-        
-        # Centrar la imagen en el lienzo
-        offset = ((512 - img_sin_fondo.width) // 2, (512 - img_sin_fondo.height) // 2)
-        final_img.paste(img_sin_fondo, offset)
+        # Centrar en lienzo transparente
+        final_canvas = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+        x_offset = (512 - img.width) // 2
+        y_offset = (512 - img.height) // 2
+        final_canvas.paste(img, (x_offset, y_offset), img)
 
-        # 5. Guardar como WebP
-        final_img.save(filepath, format="WEBP", quality=95)
-
-        mi_link = f"{request.host_url}file/{filename}"
+        # 4. Guardar
+        final_canvas.save(filepath, format="WEBP", quality=90)
 
         return jsonify({
             "status": True,
             "resultado": {
-                "descarga": mi_link,
-                "nota": "Sticker sin fondo creado"
+                "descarga": f"{request.host_url}file/{filename}",
+                "nota": "Sticker Lite"
             }
         })
 
     except Exception as e:
-        print(f"❌ Error Sticker: {str(e)}")
+        print(f"❌ Error: {e}")
         return jsonify({"status": False, "error": str(e)}), 500
 
 @app.route('/file/<filename>')
@@ -104,9 +83,8 @@ def get_file(filename):
     try:
         path = os.path.join(DOWNLOAD_FOLDER, filename)
         if os.path.exists(path):
-            return send_file(path) # WebP se envía directo
-        else:
-            return "Archivo expirado", 404
+            return send_file(path, mimetype='image/webp')
+        return "Expirado", 404
     except Exception as e:
         return str(e), 500
 
